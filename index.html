@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Alert Dashboard with Devices</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1, h2, h3 {
+      margin-bottom: 10px;
+    }
+    .device, .alert {
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    /* Make devices look clickable */
+    .clickable {
+      cursor: pointer;
+    }
+    /* Colour-code the alerts by severity */
+    .warning {
+      background-color: #fff3cd;
+      border-color: #ffeeba;
+    }
+    .critical {
+      background-color: #f8d7da;
+      border-color: #f5c6cb;
+    }
+    .information {
+      background-color: #d1ecf1;
+      border-color: #bee5eb;
+    }
+    .buttons {
+      margin-bottom: 15px;
+    }
+    .button {
+      padding: 10px 15px;
+      margin-right: 5px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .button:hover {
+      background-color: #0056b3;
+    }
+    .online {
+      color: green;
+      font-weight: bold;
+    }
+    .offline {
+      color: red;
+      font-weight: bold;
+    }
+    /* Modal styles */
+    .modal {
+      display: none; /* Hidden by default */
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.5); /* Black background with opacity */
+    }
+    .modal-content {
+      background-color: #fff;
+      margin: 10% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      border-radius: 8px;
+      position: relative;
+    }
+    .close {
+      color: #aaa;
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover,
+    .close:focus {
+      color: black;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Alert Dashboard</h1>
+
+  <!-- Devices Section -->
+  <div id="devicesContainer">
+    <h2>Devices</h2>
+    <div id="deviceList">
+      <!-- Devices will be rendered here -->
+    </div>
+  </div>
+
+  <!-- Device Modal -->
+  <div id="deviceModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="modalCloseBtn">&times;</span>
+      <div id="modalDeviceDetails">
+        <!-- Device details will be rendered here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerts Section -->
+  <div class="buttons">
+    <button id="activeBtn" class="button">Active Alerts</button>
+    <button id="resolvedBtn" class="button">Resolved Alerts</button>
+  </div>
+  <div id="alertsContainer">
+    <!-- Alerts will be rendered here -->
+  </div>
+
+  <script>
+    // API endpoints and key
+    const alertsApiUrl = 'https://api.level.io/v2/alerts';
+    const devicesApiUrl = 'https://api.level.io/v2/devices';
+    // Replace 'APIKEY' with your actual API key.
+    const apiKey = 'QpCw5xH3m7ZMUDWJucEC1984';
+
+    let alertsData = [];
+    let devicesData = [];
+
+    // Fetch devices data with the Authorization header.
+    function fetchDevices() {
+      fetch(devicesApiUrl, {
+        headers: { "Authorization": apiKey }
+      })
+      .then(response => {
+        if (!response.ok) throw new Error('Network response was not ok');
+        return response.json();
+      })
+      .then(data => {
+        devicesData = data.data;
+        renderDevices();
+      })
+      .catch(error => {
+        console.error('Error fetching devices:', error);
+        document.getElementById('deviceList').innerHTML =
+          '<p>Error fetching devices data.</p>';
+      });
+    }
+
+    // Render the devices list; each device is clickable.
+    function renderDevices() {
+      const container = document.getElementById('deviceList');
+      container.innerHTML = '';
+      if (devicesData.length === 0) {
+        container.innerHTML = '<p>No devices found.</p>';
+        return;
+      }
+      devicesData.forEach(device => {
+        const deviceDiv = document.createElement('div');
+        deviceDiv.classList.add('device', 'clickable');
+        const statusClass = device.online ? 'online' : 'offline';
+        const statusText = device.online ? 'Online' : 'Offline';
+        deviceDiv.innerHTML = `
+          <strong>${device.hostname}</strong> (${device.nickname || 'No nickname'})<br>
+          Platform: ${device.platform}<br>
+          Status: <span class="${statusClass}">${statusText}</span>
+        `;
+        deviceDiv.addEventListener('click', () => {
+          fetchDeviceDetails(device.id);
+        });
+        container.appendChild(deviceDiv);
+      });
+    }
+
+    // Fetch details for a specific device.
+    function fetchDeviceDetails(deviceId) {
+      const url = `${devicesApiUrl}/${deviceId}`;
+      fetch(url, {
+        headers: { "Authorization": apiKey }
+      })
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch device details');
+        return response.json();
+      })
+      .then(device => {
+        renderDeviceModal(device);
+      })
+      .catch(error => {
+        console.error('Error fetching device details:', error);
+      });
+    }
+
+    // Render device details in the modal and display it.
+    function renderDeviceModal(device) {
+      const modal = document.getElementById('deviceModal');
+      const modalContent = document.getElementById('modalDeviceDetails');
+      modalContent.innerHTML = `
+        <h3>Device Details</h3>
+        <p><strong>Hostname:</strong> ${device.hostname}</p>
+        <p><strong>Nickname:</strong> ${device.nickname || 'N/A'}</p>
+        <p><strong>Role:</strong> ${device.role}</p>
+        <p><strong>Group ID:</strong> ${device.group_id}</p>
+        <p><strong>Tags:</strong> ${device.tags.join(', ')}</p>
+        <p><strong>Maintenance Mode:</strong> ${device.maintenance_mode}</p>
+        <p><strong>Status:</strong> <span class="${device.online ? 'online' : 'offline'}">
+          ${device.online ? 'Online' : 'Offline'}</span></p>
+        <p><strong>Platform:</strong> ${device.platform}</p>
+        <p><strong>Serial Number:</strong> ${device.serial_number || 'N/A'}</p>
+        <p><strong>Model:</strong> ${device.model || 'N/A'}</p>
+        <p><strong>Manufacturer:</strong> ${device.manufacturer || 'N/A'}</p>
+        <p><strong>Architecture:</strong> ${device.architecture}</p>
+        <p><strong>Total Memory:</strong> ${device.total_memory}</p>
+        <p><strong>Memory Slots:</strong> ${device.memory_slots}</p>
+        <p><strong>CPU Cores:</strong> ${device.cpu_cores}</p>
+        <p><strong>Last Logged In User:</strong> ${device.last_logged_in_user}</p>
+        <p><strong>Last Reboot Time:</strong> ${new Date(device.last_reboot_time).toLocaleString()}</p>
+        <p><strong>Public IP Address:</strong> ${device.public_ip_address}</p>
+        <p><strong>Private IP Addresses:</strong> ${device.private_ip_addresses.join(', ')}</p>
+        <p><strong>City:</strong> ${device.city}</p>
+        <p><strong>Country:</strong> ${device.country}</p>
+        <p><strong>Security Score:</strong> ${device.security_score}</p>
+      `;
+      modal.style.display = "block";
+    }
+
+    // Close the modal when the user clicks the close button or outside the modal content.
+    document.getElementById('modalCloseBtn').addEventListener('click', () => {
+      document.getElementById('deviceModal').style.display = "none";
+    });
+    window.addEventListener('click', (event) => {
+      const modal = document.getElementById('deviceModal');
+      if (event.target === modal) {
+        modal.style.display = "none";
+      }
+    });
+
+    // Fetch alerts data with the Authorization header.
+    function fetchAlerts() {
+      fetch(alertsApiUrl, {
+        headers: { "Authorization": apiKey }
+      })
+      .then(response => {
+        if (!response.ok) throw new Error('Network response was not ok');
+        return response.json();
+      })
+      .then(data => {
+        alertsData = data.data;
+        showActiveAlerts();
+      })
+      .catch(error => {
+        console.error('Error fetching alerts:', error);
+        document.getElementById('alertsContainer').innerHTML =
+          '<p>Error fetching alerts data.</p>';
+      });
+    }
+
+    // Render active alerts (is_resolved is false).
+    function showActiveAlerts() {
+      const container = document.getElementById('alertsContainer');
+      container.innerHTML = '<h2>Active Alerts</h2>';
+      const activeAlerts = alertsData.filter(alert => !alert.is_resolved);
+      if (activeAlerts.length === 0) {
+        container.innerHTML += '<p>No active alerts.</p>';
+        return;
+      }
+      activeAlerts.forEach(alert => {
+        const alertDiv = document.createElement('div');
+        alertDiv.classList.add('alert', alert.severity);
+        alertDiv.innerHTML = `
+          <strong>${alert.name}</strong><br>
+          ${alert.description}<br>
+          <small>Started at: ${new Date(alert.started_at).toLocaleString()}</small>
+        `;
+        container.appendChild(alertDiv);
+      });
+    }
+
+    // Render resolved alerts (is_resolved is true).
+    function showResolvedAlerts() {
+      const container = document.getElementById('alertsContainer');
+      container.innerHTML = '<h2>Resolved Alerts</h2>';
+      const resolvedAlerts = alertsData.filter(alert => alert.is_resolved);
+      if (resolvedAlerts.length === 0) {
+        container.innerHTML += '<p>No resolved alerts.</p>';
+        return;
+      }
+      resolvedAlerts.forEach(alert => {
+        const alertDiv = document.createElement('div');
+        alertDiv.classList.add('alert', alert.severity);
+        alertDiv.innerHTML = `
+          <strong>${alert.name}</strong><br>
+          ${alert.description}<br>
+          <small>Started at: ${new Date(alert.started_at).toLocaleString()}</small><br>
+          <small>Resolved at: ${new Date(alert.resolved_at).toLocaleString()}</small>
+        `;
+        container.appendChild(alertDiv);
+      });
+    }
+
+    // Attach event listeners for alert toggling.
+    document.getElementById('activeBtn').addEventListener('click', showActiveAlerts);
+    document.getElementById('resolvedBtn').addEventListener('click', showResolvedAlerts);
+
+    // Load devices and alerts when the page loads.
+    window.onload = function() {
+      fetchDevices();
+      fetchAlerts();
+    };
+  </script>
+</body>
+</html>
